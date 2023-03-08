@@ -1,21 +1,90 @@
-'use strict';
+import '../public/icons/icon_16.png';
+import '../public/icons/icon_48.png';
+import '../public/icons/icon_128.png';
 
-// With background scripts you can communicate with popup
-// and contentScript files.
-// For more information on background script,
-// See https://developer.chrome.com/extensions/background_pages
+import { Component, MessageType } from './message_types';
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'GREETINGS') {
-    const message = `Hi ${
-      sender.tab ? 'Con' : 'Pop'
-    }, my name is Bac. I am from Background. It's great to hear from you.`;
+const sendMessageToContent = (message) => {
+  chrome.tabs.query({ currentWindow: true, active: true }, (tabs) => {
+    const activeTab = tabs[0];
+    if (activeTab) {
+      console.log('Send msg to content:', message);
+      chrome.tabs.sendMessage(activeTab.id, message);
+    } else {
+      console.log('Unable to send msg, no active tab:', message);
+    }
+  });
+};
 
-    // Log message coming from the `request` parameter
-    console.log(request.payload.message);
-    // Send a response message
-    sendResponse({
-      message,
+const sendMessageToPopup = (message) => {
+  console.log('Send msg to popup:', message);
+  chrome.runtime.sendMessage(message);
+};
+
+// qna.load().then((model) => {
+//   window.__qna_model = model;
+//   sendMessageToPopup({
+//     type: MessageType.MODEL_LOADED
+//   });
+//   console.log('Model loaded');
+// });
+
+const handleAnswer = (model, msg) => {
+  model
+    .findAnswers(msg.question, msg.context)
+    .then((answers) => {
+      sendMessageToContent({
+        type: MessageType.QUESTION_RESULT,
+        question: msg,
+        answers: answers
+      });
+    })
+    .catch((error) => {
+      sendMessageToContent({
+        type: MessageType.QUESTION_ERROR,
+        question: msg,
+        answers: [],
+        error: error
+      });
     });
+
+  return true;
+};
+
+chrome.runtime.onMessage.addListener((msg, sender, callback) => {
+  console.log('recieve msg:', msg);
+  switch (msg.type) {
+    case MessageType.QUERY:
+    case MessageType.QUERY_RESULT:
+    case MessageType.QUERY_ERROR:
+    case MessageType.QUERY_DONE:
+      break;
+
+    case MessageType.POPUP_LOADED:
+      // If model is loaded, respond with a "model loaded"
+      // message. Otherwise, wait for the model to load.
+      if (window.__qna_model) {
+        sendMessageToPopup({
+          type: MessageType.MODEL_LOADED
+        });
+      }
+      break;
+
+    case MessageType.QUESTION:
+      if (!window.__qna_model) {
+        sendMessageToContent({
+          type: MessageType.QUESTION_ERROR,
+          question: msg,
+          answers: [],
+          error: 'Model not loaded'
+        });
+        return true;
+      } else {
+        return handleAnswer(window.__qna_model, msg, callback);
+      }
+
+    default:
+      console.error('Did not recognize message type: ', msg);
+      return true;
   }
 });
