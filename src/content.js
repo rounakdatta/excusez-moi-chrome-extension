@@ -1,3 +1,4 @@
+// whatever you log here would be printed in the main tab window's console
 import './css/inject.css';
 import Mark from 'mark.js';
 import {
@@ -84,11 +85,15 @@ const handleQuery = (msg) => {
 };
 
 const handleModelSuccess = (msg) => {
+  console.log("LETSDOIT")
+  console.log(msg)
   // Mark question on dom.
   const element = findElementById(msg.question.elementId);
   element.attr(DATA_ATTR_SUCCESS, 'true');
 
   for (const answer of msg.answers) {
+    console.log("PRINTINT OUT THE ANSWER")
+    console.log(answer)
     chrome.runtime.sendMessage({
       type: MessageType.QUERY_RESULT,
       answer: answer,

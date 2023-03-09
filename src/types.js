@@ -1,3 +1,4 @@
+# TODO: remove this file, this is not being used anywhere
 export const MessageType = {
     // Query from popup -> content script.
     QUERY: 'QUERY',
