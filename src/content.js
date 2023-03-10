@@ -140,6 +140,13 @@ const handleSelection = (msg) => {
   // Add new highlight;
   const element = findElementById(msg.elementId);
   element.attr(DATA_ATTR_SELECTED, 'true');
+  // TODO: figure out later why injecting CSS didn't work
+  element.css({
+    'border-style': 'dashed',
+    'border-color': 'black',
+    'border-width': 'thick'
+  })
+
   element[0].scrollIntoView({
     block: 'end',
     inline: 'nearest'

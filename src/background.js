@@ -61,7 +61,17 @@ async function findAnswers(question, context) {
   // call API here again
   console.log(question)
   console.log(context)
-  return ["something"]
+
+  return [
+    {
+      text: "test mode",
+      score: 2
+    }
+  ]
+  // print("HERE IT IS")
+
+  // return ["something"]
+  // //   return answers
 }
 
 const handleAnswer = (msg) => {
