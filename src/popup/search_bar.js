@@ -53,7 +53,7 @@ const registerListener = (setState, setAnswers, setErrors) => {
       case MessageType.QUESTION:
         break;
 
-      case MessageType.MODEL_LOADED:
+      case MessageType.PREPARATION_DONE:
         setState(SearchBarState.READY);
         break;
 
@@ -119,7 +119,7 @@ const SearchBarControl = (props) => {
           <CircularProgress size={22} />
         </Grid>
         <Grid item style={{ margin: 'auto auto' }}>
-          <span>Model Loading</span>
+          <span>Understanding...</span>
         </Grid>
       </Grid>
     );
@@ -222,9 +222,16 @@ const SearchBar = (props) => {
   }, []);
 
   const search = () => {
-    sendMessageToContent({
-      type: MessageType.QUERY,
-      query: input
+
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      const currentUrl = tabs[0].url;
+      console.log(tabs[0].url);
+    
+      sendMessageToBackground({
+        type: MessageType.ASK_QUESTION,
+        query: input,
+        url: tabs[0].url
+      });
     });
 
     setState(SearchBarState.LOADING);

@@ -24,30 +24,30 @@ const sendMessageToPopup = (message) => {
   chrome.runtime.sendMessage(message);
 };
 
-console.log("lets do some preparation")
-fetch("http://localhost:8000/api/v1/prepare", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    "url": "https://rounakdatta.github.io/blog",
-    "content": "I know that jackfruits are quite popular in Rishra. You generally find jackfruits in Mini Market."
-  })
-})
-.then(response => {
-  if (!response.ok) {
-    console.log("oops preparations failed")
-    throw new Error("boom, preparation failed", response)
-  }
-})
-.then(_ => {
-  // window.__qna_model = "PREP_DONE";
-  sendMessageToPopup({
-    type: MessageType.MODEL_LOADED
-  });
-  console.log('Model loaded');
-})
+// console.log("lets do some preparation")
+// fetch("http://localhost:8000/api/v1/prepare", {
+//   method: "POST",
+//   headers: {
+//     "Content-Type": "application/json"
+//   },
+//   body: JSON.stringify({
+//     "url": "https://rounakdatta.github.io/blog",
+//     "content": "I know that jackfruits are quite popular in Rishra. You generally find jackfruits in Mini Market."
+//   })
+// })
+// .then(response => {
+//   if (!response.ok) {
+//     console.log("oops preparations failed")
+//     throw new Error("boom, preparation failed", response)
+//   }
+// })
+// .then(_ => {
+//   // window.__qna_model = "PREP_DONE";
+//   sendMessageToPopup({
+//     type: MessageType.MODEL_LOADED
+//   });
+//   console.log('Model loaded');
+// })
 
 // qna.load().then((model) => {
 //   window.__qna_model = model;
@@ -97,6 +97,63 @@ const handleAnswer = (msg) => {
   return true;
 };
 
+// this function calls the backend with the preparation material
+const askBackendToPrepare = (msg) => {
+  fetch("http://localhost:8000/api/v1/prepare", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      "url": msg.url,
+      "content": msg.material
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      const err = "preparation: backend api call failed"
+      console.log(err)
+      throw new Error(err, response)
+    }
+  })
+  .then(_ => {
+    sendMessageToPopup({
+      type: MessageType.PREPARATION_DONE
+    });
+    console.log("preparation: done");
+  })
+}
+
+// this function calls the backend with the question expecting an apt answer
+const getAnswerFromBackend = (msg) => {
+  fetch("http://localhost:8000/api/v1/answer", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      "url": msg.url,
+      "content": msg.query
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      const err = "answer: backend api call failed"
+      console.log(err)
+      throw new Error(err, response)
+    } else {
+      return response.json()
+    }
+  })
+  .then(answer => {
+    sendMessageToContent({
+      type: MessageType.HIGHLIGHT_ANSWER,
+      answer: answer
+    });
+    console.log("answer: done");
+  })
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, callback) => {
   console.log('recieve msg:', msg);
   switch (msg.type) {
@@ -107,14 +164,17 @@ chrome.runtime.onMessage.addListener((msg, sender, callback) => {
       break;
 
     case MessageType.POPUP_LOADED:
-      // If model is loaded, respond with a "model loaded"
-      // message. Otherwise, wait for the model to load.
-      if (true) {
-        sendMessageToPopup({
-          type: MessageType.MODEL_LOADED
-        });
-      }
+      sendMessageToContent({
+        type: MessageType.SCRAPE_CONTENT_TEXT
+      });
+      
       break;
+
+    case MessageType.PREPARE:
+      return askBackendToPrepare(msg);
+
+    case MessageType.ASK_QUESTION:
+      return getAnswerFromBackend(msg);
 
     case MessageType.QUESTION:
       console.log("now I'll try to answer the question properly")
@@ -125,3 +185,19 @@ chrome.runtime.onMessage.addListener((msg, sender, callback) => {
       return true;
   }
 });
+
+// as soon as the popup is loaded, we need to ask content script to start preparations
+// support both extension button click as well as shortcut key
+// TODO: remove the extra arguments
+// chrome.action.onClicked.addListener(function (tab) {
+//   console.log("lets send something")
+//   sendMessageToContent({
+//     type: MessageType.SCRAPE_CONTENT_TEXT
+//   });
+// });
+
+// chrome.commands.onCommand.addListener((command) => {
+//   sendMessageToContent({
+//     type: MessageType.SCRAPE_CONTENT_TEXT
+//   });
+// });

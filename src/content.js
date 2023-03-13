@@ -13,6 +13,7 @@ import { Component, MessageType } from './message_types';
 
 import $ from 'jquery';
 import { v4 as uuidv4 } from 'uuid';
+import { convert } from 'html-to-text';
 
 const findAllElements = () => {
   return $('[' + DATA_ATTR_ELEMENT_ID + ']');
@@ -174,6 +175,64 @@ const handleClear = () => {
     .removeAttr(DATA_ATTR_ELEMENT_ID);
 };
 
+
+// this function scrapes the complete DOM in plain readable text
+// and sends it back to background for preparation
+const scrapeContentAsPlainTextAndSendForPreparation = () => {
+  const currentUrl = window.location.href;
+  const options = {
+    wordwrap: 130,
+    // ...
+  };
+
+  const dirtyHtml = document.documentElement.outerHTML;
+  const plainText = convert(dirtyHtml, options);
+
+  chrome.runtime.sendMessage(
+    {
+      type: MessageType.PREPARE,
+      url: currentUrl,
+      material: plainText
+    }
+  );
+}
+
+// this function tries to highlight the answer on the DOM
+const displayHighlightsOnPage = (msg) => {
+  // we'll have to look at the entire body to find out the highlights
+  const markInstance = new Mark(document.body)
+  const highlightingOptions = {
+    className: "highlighted",
+    element:  "span"
+  };
+  const stringToHighlight = msg.answer.resp
+  console.log(stringToHighlight)
+
+  // there could be multiple results, we split by comma
+  const stringsToSearch = stringToHighlight.split(',').map(c => c.trim());
+
+  // apply the highlights
+  markInstance.mark(stringsToSearch, {
+    className: CLASS_NAME_MARKED,
+    acrossElements: true,
+    separateWordSearch: false,
+    accuracy: "loose",
+    done: () => {
+      console.log("ok done")
+    }
+  });
+
+  // highlights can be hrefs as well, so we'll put a border around the parent elements
+  // for a better finding experience
+  const highlightedElements = document.querySelectorAll("." + CLASS_NAME_MARKED);
+  console.log(highlightedElements)
+  highlightedElements.forEach(element => {
+    element.parentElement.style.borderStyle = 'dashed';
+    element.parentElement.style.borderColor = 'black';
+    element.parentElement.style.borderWidth = 'thick';
+  })
+}
+
 const handleMsg = (msg, sender, callback) => {
   if (!msg) {
     return;
@@ -185,6 +244,14 @@ const handleMsg = (msg, sender, callback) => {
     case MessageType.POPUP_LOADED:
     case MessageType.MODEL_LOADED:
     case MessageType.MODEL_ERROR:
+      break;
+
+    case MessageType.SCRAPE_CONTENT_TEXT:
+      scrapeContentAsPlainTextAndSendForPreparation();
+      break;
+
+    case MessageType.HIGHLIGHT_ANSWER:
+      displayHighlightsOnPage(msg);
       break;
 
     case MessageType.QUERY:
