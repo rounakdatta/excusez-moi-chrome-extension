@@ -145,10 +145,10 @@ const getAnswerFromBackend = (msg) => {
       return response.json()
     }
   })
-  .then(answer => {
+  .then(answers => {
     sendMessageToContent({
       type: MessageType.HIGHLIGHT_ANSWER,
-      answer: answer
+      answer: answers
     });
     console.log("answer: done");
   })

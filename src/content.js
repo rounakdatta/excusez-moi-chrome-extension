@@ -187,6 +187,7 @@ const scrapeContentAsPlainTextAndSendForPreparation = () => {
 
   const dirtyHtml = document.documentElement.outerHTML;
   const plainText = convert(dirtyHtml, options);
+  console.log(plainText)
 
   chrome.runtime.sendMessage(
     {
@@ -195,6 +196,13 @@ const scrapeContentAsPlainTextAndSendForPreparation = () => {
       material: plainText
     }
   );
+}
+
+function trimTrailingSlashInUrl(url) {
+  if(url.substr(-1) === '/') {
+      return url.substr(0, url.length - 1);
+  }
+  return url;
 }
 
 // this function tries to highlight the answer on the DOM
@@ -222,15 +230,33 @@ const displayHighlightsOnPage = (msg) => {
     }
   });
 
+  // however sometimes answer can be in the hyperlinks, in that case we need to find the parent element
+  const cleansedUrlStrings = stringsToSearch.map(trimTrailingSlashInUrl)
+  const allHyperlinksInPage = document.querySelectorAll("a")
+  allHyperlinksInPage.forEach(hyperlink => {
+    if (cleansedUrlStrings.includes(trimTrailingSlashInUrl(hyperlink.href))) {
+      markInstance.mark(hyperlink.textContent, {
+        className: CLASS_NAME_MARKED,
+        acrossElements: true,
+        separateWordSearch: false,
+        accuracy: "loose",
+        done: () => {
+          console.log("ok url highlighting done")
+        }
+      })
+    }
+
+  })
+
   // highlights can be hrefs as well, so we'll put a border around the parent elements
   // for a better finding experience
-  const highlightedElements = document.querySelectorAll("." + CLASS_NAME_MARKED);
-  console.log(highlightedElements)
-  highlightedElements.forEach(element => {
-    element.parentElement.style.borderStyle = 'dashed';
-    element.parentElement.style.borderColor = 'black';
-    element.parentElement.style.borderWidth = 'thick';
-  })
+  // const highlightedElements = document.querySelectorAll("." + CLASS_NAME_MARKED);
+  // console.log(highlightedElements)
+  // highlightedElements.forEach(element => {
+  //   element.parentElement.style.borderStyle = 'dashed';
+  //   element.parentElement.style.borderColor = 'black';
+  //   element.parentElement.style.borderWidth = 'thick';
+  // })
 }
 
 const handleMsg = (msg, sender, callback) => {
