@@ -14,6 +14,8 @@ import { Component, MessageType } from './message_types';
 import $ from 'jquery';
 import { v4 as uuidv4 } from 'uuid';
 import { convert } from 'html-to-text';
+import { TidyURL } from 'tidy-url';
+import { removeStopwords } from 'stopword';
 
 const findAllElements = () => {
   return $('[' + DATA_ATTR_ELEMENT_ID + ']');
@@ -175,10 +177,27 @@ const handleClear = () => {
     .removeAttr(DATA_ATTR_ELEMENT_ID);
 };
 
+// we'll remove tracking links from all URLs so that our LLM is not fed with junk
+const cleanseAllUrlsInPage = () => {
+  const allAnchorTags = document.getElementsByTagName("a");
+  for (var i = 0; i < allAnchorTags.length; i++) {
+    const anchorTag = allAnchorTags[i]
+    const originalUrl = anchorTag.href 
+    anchorTag.href = TidyURL.clean(originalUrl).url
+  }
+}
+
+// we'll remove stopwords from the text
+const removeStopwordsInPageText = (fullText) => {
+  const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
+  return trimmedText
+}
 
 // this function scrapes the complete DOM in plain readable text
 // and sends it back to background for preparation
 const scrapeContentAsPlainTextAndSendForPreparation = () => {
+  cleanseAllUrlsInPage()
+
   const currentUrl = window.location.href;
   const options = {
     wordwrap: 130,
@@ -187,13 +206,13 @@ const scrapeContentAsPlainTextAndSendForPreparation = () => {
 
   const dirtyHtml = document.documentElement.outerHTML;
   const plainText = convert(dirtyHtml, options);
-  console.log(plainText)
+  const reducedPlainText = removeStopwordsInPageText(plainText)
 
   chrome.runtime.sendMessage(
     {
       type: MessageType.PREPARE,
       url: currentUrl,
-      material: plainText
+      material: reducedPlainText
     }
   );
 }
@@ -209,6 +228,12 @@ function trimTrailingSlashInUrl(url) {
 const displayHighlightsOnPage = (msg) => {
   const allAnswers = msg.answer.answers
   allAnswers.forEach((answer) => {
+    const stringToHighlight = answer["resp"]
+    console.log(stringToHighlight)
+    // if backend returns response code as `KZZ`, that means no response was found, so we skip
+    if ("KZZ" == stringToHighlight) {
+      return;
+    }
 
     // we'll have to look at the entire body to find out the highlights
     const markInstance = new Mark(document.body)
@@ -216,8 +241,6 @@ const displayHighlightsOnPage = (msg) => {
       className: "highlighted",
       element:  "span"
     };
-    const stringToHighlight = answer["resp"]
-    console.log(stringToHighlight)
 
     // there could be multiple results, we split by comma
     const stringsToSearch = stringToHighlight.split(',').map(c => c.trim());
