@@ -207,46 +207,51 @@ function trimTrailingSlashInUrl(url) {
 
 // this function tries to highlight the answer on the DOM
 const displayHighlightsOnPage = (msg) => {
-  // we'll have to look at the entire body to find out the highlights
-  const markInstance = new Mark(document.body)
-  const highlightingOptions = {
-    className: "highlighted",
-    element:  "span"
-  };
-  const stringToHighlight = msg.answer.resp
-  console.log(stringToHighlight)
+  const allAnswers = msg.answer.answers
+  allAnswers.forEach((answer) => {
 
-  // there could be multiple results, we split by comma
-  const stringsToSearch = stringToHighlight.split(',').map(c => c.trim());
+    // we'll have to look at the entire body to find out the highlights
+    const markInstance = new Mark(document.body)
+    const highlightingOptions = {
+      className: "highlighted",
+      element:  "span"
+    };
+    const stringToHighlight = answer["resp"]
+    console.log(stringToHighlight)
 
-  // apply the highlights
-  markInstance.mark(stringsToSearch, {
-    className: CLASS_NAME_MARKED,
-    acrossElements: true,
-    separateWordSearch: false,
-    accuracy: "loose",
-    done: () => {
-      console.log("ok done")
-    }
+    // there could be multiple results, we split by comma
+    const stringsToSearch = stringToHighlight.split(',').map(c => c.trim());
+
+    // apply the highlights
+    markInstance.mark(stringsToSearch, {
+      className: CLASS_NAME_MARKED,
+      acrossElements: true,
+      separateWordSearch: false,
+      accuracy: "loose",
+      done: () => {
+        console.log("ok done")
+      }
+    });
+
+    // however sometimes answer can be in the hyperlinks, in that case we need to find the parent element
+    const cleansedUrlStrings = stringsToSearch.map(trimTrailingSlashInUrl)
+    const allHyperlinksInPage = document.querySelectorAll("a")
+    allHyperlinksInPage.forEach(hyperlink => {
+      if (cleansedUrlStrings.includes(trimTrailingSlashInUrl(hyperlink.href))) {
+        markInstance.mark(hyperlink.textContent, {
+          className: CLASS_NAME_MARKED,
+          acrossElements: true,
+          separateWordSearch: false,
+          accuracy: "loose",
+          done: () => {
+            console.log("ok url highlighting done")
+          }
+        })
+      }
+
+    })
+
   });
-
-  // however sometimes answer can be in the hyperlinks, in that case we need to find the parent element
-  const cleansedUrlStrings = stringsToSearch.map(trimTrailingSlashInUrl)
-  const allHyperlinksInPage = document.querySelectorAll("a")
-  allHyperlinksInPage.forEach(hyperlink => {
-    if (cleansedUrlStrings.includes(trimTrailingSlashInUrl(hyperlink.href))) {
-      markInstance.mark(hyperlink.textContent, {
-        className: CLASS_NAME_MARKED,
-        acrossElements: true,
-        separateWordSearch: false,
-        accuracy: "loose",
-        done: () => {
-          console.log("ok url highlighting done")
-        }
-      })
-    }
-
-  })
 
   // highlights can be hrefs as well, so we'll put a border around the parent elements
   // for a better finding experience
