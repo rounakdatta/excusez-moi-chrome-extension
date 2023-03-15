@@ -189,8 +189,9 @@ const cleanseAllUrlsInPage = () => {
 
 // we'll remove stopwords from the text
 const removeStopwordsInPageText = (fullText) => {
-  const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
-  return trimmedText
+  return fullText
+  // const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
+  // return trimmedText
 }
 
 // this function scrapes the complete DOM in plain readable text
