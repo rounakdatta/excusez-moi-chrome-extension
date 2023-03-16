@@ -48,32 +48,24 @@ const registerListener = (setState, setAnswers, setErrors) => {
     console.log('recieved msg:', msg, 'from:', sender);
     switch (msg.type) {
       // Do nothing, these msgs are handled by the content script.
-      case MessageType.QUESTION_RESULT:
-      case MessageType.QUESTION_ERROR:
-      case MessageType.QUESTION:
+      case MessageType.HIGHLIGHT_ANSWER:
+      case MessageType.PREPARE:
+      case MessageType.ASK_QUESTION:
+      case MessageType.SELECT:
+      case MessageType.CLEAR:
         break;
 
       case MessageType.PREPARATION_DONE:
         setState(SearchBarState.READY);
         break;
 
-      case MessageType.QUERY_RESULT:
+      case MessageType.MAKE_ANSWERS_ITERABLE:
         setAnswers((answers) =>
-          [...answers, msg].sort((msg1, msg2) => {
-            if (msg1.answer.score < msg2.answer.score) {
-              return 1;
-            } else {
-              return -1;
-            }
-          })
+          [...answers, ...msg.answers]
         );
         break;
 
-      case MessageType.QUERY_ERROR:
-        setErrors((errors) => [...errors, msg]);
-        break;
-
-      case MessageType.QUERY_DONE:
+      case MessageType.SEARCH_OPERATION_DONE:
         setState(SearchBarState.DONE);
         break;
 
@@ -210,8 +202,8 @@ const SearchBar = (props) => {
 
     sendMessageToContent({
       type: MessageType.SELECT,
-      answer: answers[selectionIdx].answer,
-      elementId: answers[selectionIdx].elementId
+      // answer: answers[selectionIdx].answer,
+      elementId: answers[selectionIdx]
     });
   }, [selectionIdx, answers]);
 

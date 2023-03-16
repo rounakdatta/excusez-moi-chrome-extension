@@ -17,166 +17,6 @@ import { convert } from 'html-to-text';
 import { TidyURL } from 'tidy-url';
 import { removeStopwords } from 'stopword';
 
-const findAllElements = () => {
-  return $('[' + DATA_ATTR_ELEMENT_ID + ']');
-};
-
-const findElementById = (elementId) => {
-  const q = $('[' + DATA_ATTR_ELEMENT_ID + '=' + elementId + ']');
-  return q.length > 0 ? $(q[0]) : null;
-};
-
-const checkIfQueryDone = () => {
-  const allElements = findAllElements();
-  const waitingElements = allElements.filter((idx, node) => {
-    return $(node).attr(DATA_ATTR_SUCCESS) === undefined;
-  });
-
-  if (waitingElements.length === 0) {
-    console.log('Query done');
-    chrome.runtime.sendMessage({
-      type: MessageType.QUERY_DONE
-    });
-  }
-};
-
-// Heuristic to decide whether the element is worth searching.
-const searchableElement = (idx, el) => {
-  const validToken = (token) => {
-    if (!token) {
-      return false;
-    }
-
-    const alphaNum = token.match(/[a-zA-Z0-9]/g);
-    return alphaNum && alphaNum.length > 0;
-  };
-
-  // Split by spaces, remove tokens without alphanumeric characters.
-  const tokens = $(el).text().split(' ').filter(validToken);
-  return tokens.length > MIN_TOKENS;
-};
-
-const handleQuery = (msg) => {
-  console.log('Searching query:', msg.query);
-
-  const textElements = $('p,ul,ol');
-  const searchable = textElements
-    .filter(searchableElement)
-    .filter((idx, el) => el.offsetParent !== null);
-
-  console.log('Searching', searchable.length, 'text elements');
-  if (searchable.length === 0) {
-    return chrome.runtime.sendMessage({
-      type: MessageType.QUERY_DONE
-    });
-  }
-
-  searchable.each((idx, element) => {
-    const context = $(element).text().trim();
-    const elementId = uuidv4();
-    $(element).attr(DATA_ATTR_ELEMENT_ID, elementId);
-    chrome.runtime.sendMessage(
-      {
-        type: MessageType.QUESTION,
-        elementId: elementId,
-        question: msg.query,
-        context: context
-      },
-      handleMsg
-    );
-  });
-};
-
-const handleModelSuccess = (msg) => {
-  console.log("LETSDOIT")
-  console.log(msg)
-  // Mark question on dom.
-  const element = findElementById(msg.question.elementId);
-  element.attr(DATA_ATTR_SUCCESS, 'true');
-
-  for (const answer of msg.answers) {
-    console.log("PRINTINT OUT THE ANSWER")
-    console.log(answer)
-    chrome.runtime.sendMessage({
-      type: MessageType.QUERY_RESULT,
-      answer: answer,
-      elementId: msg.question.elementId
-    });
-  }
-
-  checkIfQueryDone();
-};
-
-const handleModelErr = (msg) => {
-  console.log('Model error: ', msg);
-
-  // Mark question on dom.
-  const element = findElementById(msg.question.elementId);
-  element.attr(DATA_ATTR_SUCCESS, 'false');
-
-  chrome.runtime.sendMessage({
-    type: MessageType.QUERY_ERROR,
-    error: msg.error,
-    elementId: msg.elementId
-  });
-
-  checkIfQueryDone();
-};
-
-const clearSelection = () => {
-  // Remove old highlight if it exists.
-  const oldElement = $('[' + DATA_ATTR_SELECTED + ']');
-  if (oldElement.length > 0) {
-    oldElement.removeAttr(DATA_ATTR_SELECTED);
-    var instance = new Mark(oldElement[0]);
-    instance.unmark({
-      done: () => {
-        $('.' + CLASS_NAME_MARKED_SCORE).remove();
-      }
-    });
-  }
-};
-
-const handleSelection = (msg) => {
-  clearSelection();
-
-  // Add new highlight;
-  const element = findElementById(msg.elementId);
-  element.attr(DATA_ATTR_SELECTED, 'true');
-  // TODO: figure out later why injecting CSS didn't work
-  element.css({
-    'border-style': 'dashed',
-    'border-color': 'black',
-    'border-width': 'thick'
-  })
-
-  element[0].scrollIntoView({
-    block: 'end',
-    inline: 'nearest'
-  });
-  var instance = new Mark(element[0]);
-  instance.mark(msg.answer.text, {
-    className: CLASS_NAME_MARKED,
-    acrossElements: true,
-    separateWordSearch: false,
-    done: () => {
-      const scoreEl = $('<span/>')
-        .addClass(CLASS_NAME_MARKED_SCORE)
-        .text(msg.answer.score.toFixed(4));
-      $('.' + CLASS_NAME_MARKED)
-        .first()
-        .append(scoreEl);
-    }
-  });
-};
-
-const handleClear = () => {
-  clearSelection();
-  findAllElements()
-    .removeAttr(DATA_ATTR_SUCCESS)
-    .removeAttr(DATA_ATTR_ELEMENT_ID);
-};
-
 // we'll remove tracking links from all URLs so that our LLM is not fed with junk
 const cleanseAllUrlsInPage = () => {
   const allAnchorTags = document.getElementsByTagName("a");
@@ -188,10 +28,10 @@ const cleanseAllUrlsInPage = () => {
 }
 
 // we'll remove stopwords from the text
+// TODO: we have disabled for now
 const removeStopwordsInPageText = (fullText) => {
-  return fullText
-  // const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
-  // return trimmedText
+  const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
+  return trimmedText
 }
 
 // this function scrapes the complete DOM in plain readable text
@@ -207,13 +47,12 @@ const scrapeContentAsPlainTextAndSendForPreparation = () => {
 
   const dirtyHtml = document.documentElement.outerHTML;
   const plainText = convert(dirtyHtml, options);
-  const reducedPlainText = removeStopwordsInPageText(plainText)
 
   chrome.runtime.sendMessage(
     {
       type: MessageType.PREPARE,
       url: currentUrl,
-      material: reducedPlainText
+      material: plainText
     }
   );
 }
@@ -225,8 +64,25 @@ function trimTrailingSlashInUrl(url) {
   return url;
 }
 
+const removeHighlightsOnPage = () => {
+  const markInstance = new Mark(document.body);
+  markInstance.unmark();
+}
+
+const handleSelection = (msg) => {
+  const element = document.getElementById(msg.elementId)
+  element.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+    inline: 'center'
+});
+}
+
 // this function tries to highlight the answer on the DOM
 const displayHighlightsOnPage = (msg) => {
+  // we'll first remove all the existing highlights on page
+  removeHighlightsOnPage();
+
   const allAnswers = msg.answer.answers
   allAnswers.forEach((answer) => {
     const stringToHighlight = answer["resp"]
@@ -275,17 +131,31 @@ const displayHighlightsOnPage = (msg) => {
 
     })
 
+    // we send a search done message to popup so that the loading banner is stopped
+    chrome.runtime.sendMessage(
+      {
+        type: MessageType.SEARCH_OPERATION_DONE,
+      }
+    );
+
   });
 
-  // highlights can be hrefs as well, so we'll put a border around the parent elements
-  // for a better finding experience
-  // const highlightedElements = document.querySelectorAll("." + CLASS_NAME_MARKED);
-  // console.log(highlightedElements)
-  // highlightedElements.forEach(element => {
-  //   element.parentElement.style.borderStyle = 'dashed';
-  //   element.parentElement.style.borderColor = 'black';
-  //   element.parentElement.style.borderWidth = 'thick';
-  // })
+  const elementIdsOfHighlightedElements = []
+
+  const highlightedResults = document.querySelectorAll("mark");
+  highlightedResults.forEach((element, index) => {
+      // we assign each of these highlighted elements an id
+      element.id = Math.random().toString(36).slice(2, 7);
+      elementIdsOfHighlightedElements.push(element.id)
+  });
+
+  // aggregate all results and send to popup for iterability
+  chrome.runtime.sendMessage(
+    {
+      type: MessageType.MAKE_ANSWERS_ITERABLE,
+      answers: elementIdsOfHighlightedElements
+    }
+  );
 }
 
 const handleMsg = (msg, sender, callback) => {
@@ -296,10 +166,12 @@ const handleMsg = (msg, sender, callback) => {
   console.log('recieved msg:', msg, 'from:', sender);
 
   switch (msg.type) {
-    case MessageType.POPUP_LOADED:
-    case MessageType.MODEL_LOADED:
-    case MessageType.MODEL_ERROR:
-      break;
+    case MessageType.PREPARE:
+    case MessageType.PREPARATION_DONE:
+    case MessageType.ASK_QUESTION:
+    case MessageType.MAKE_ANSWERS_ITERABLE:
+    case MessageType.SEARCH_OPERATION_DONE:
+      break
 
     case MessageType.SCRAPE_CONTENT_TEXT:
       scrapeContentAsPlainTextAndSendForPreparation();
@@ -309,20 +181,11 @@ const handleMsg = (msg, sender, callback) => {
       displayHighlightsOnPage(msg);
       break;
 
-    case MessageType.QUERY:
-      handleQuery(msg);
-      break;
-    case MessageType.QUESTION_RESULT:
-      handleModelSuccess(msg);
-      break;
-    case MessageType.QUESTION_ERROR:
-      handleModelErr(msg);
-      break;
     case MessageType.SELECT:
       handleSelection(msg);
       break;
     case MessageType.CLEAR:
-      handleClear();
+      removeHighlightsOnPage();
       break;
 
     default:
