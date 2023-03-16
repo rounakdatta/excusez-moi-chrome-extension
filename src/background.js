@@ -1,28 +1,30 @@
 // whatever you log here will be written to the extension's console
+import '../public/icons/icon_128.png';
 import '../public/icons/icon_16.png';
 import '../public/icons/icon_48.png';
-import '../public/icons/icon_128.png';
 
-import { Component, MessageType } from './message_types';
+import { MessageType } from './message_types';
 
+// this function sends a message to the content script on the current tab
 const sendMessageToContent = (message) => {
   chrome.tabs.query({ currentWindow: true, active: true }, (tabs) => {
     const activeTab = tabs[0];
     if (activeTab) {
-      console.log('Send msg to content:', message);
+      console.log('background: send msg to content:', message);
       chrome.tabs.sendMessage(activeTab.id, message);
     } else {
-      console.log('Unable to send msg, no active tab:', message);
+      console.log('background: unable to send msg, no active tab:', message);
     }
   });
 };
 
+// this function sends a message to the popup
 const sendMessageToPopup = (message) => {
-  console.log('Send msg to popup:', message);
+  console.log('background: send msg to popup:', message);
   chrome.runtime.sendMessage(message);
 };
 
-// this function calls the backend with the preparation material
+// this function calls the backend with the preparation material expecting a 200 OK response
 const askBackendToPrepare = (msg) => {
   fetch("http://localhost:8000/api/v1/prepare", {
     method: "POST",
@@ -34,19 +36,19 @@ const askBackendToPrepare = (msg) => {
       "content": msg.material
     })
   })
-  .then(response => {
-    if (!response.ok) {
-      const err = "preparation: backend api call failed"
-      console.log(err)
-      throw new Error(err, response)
-    }
-  })
-  .then(_ => {
-    sendMessageToPopup({
-      type: MessageType.PREPARATION_DONE
-    });
-    console.log("preparation: done");
-  })
+    .then(response => {
+      if (!response.ok) {
+        const err = "background: backend api call for preparation failed"
+        console.log(err)
+        throw new Error(err, response)
+      }
+    })
+    .then(_ => {
+      sendMessageToPopup({
+        type: MessageType.PREPARATION_DONE
+      });
+      console.log("preparation: successfully done");
+    })
 }
 
 // this function calls the backend with the question expecting an apt answer
@@ -61,27 +63,27 @@ const getAnswerFromBackend = (msg) => {
       "content": msg.query
     })
   })
-  .then(response => {
-    if (!response.ok) {
-      const err = "answer: backend api call failed"
-      console.log(err)
-      throw new Error(err, response)
-    } else {
-      return response.json()
-    }
-  })
-  .then(answers => {
-    sendMessageToContent({
-      type: MessageType.HIGHLIGHT_ANSWER,
-      answer: answers
-    });
+    .then(response => {
+      if (!response.ok) {
+        const err = "background: backend api call for answering failed"
+        console.log(err)
+        throw new Error(err, response)
+      } else {
+        return response.json()
+      }
+    })
+    .then(answers => {
+      sendMessageToContent({
+        type: MessageType.HIGHLIGHT_ANSWER,
+        answer: answers
+      });
 
-    console.log("answer: done");
-  });
+      console.log("background: successfully done");
+    });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, callback) => {
-  console.log('recieve msg:', msg);
+  console.log('background: recieved msg:', msg, 'from:', sender);
   switch (msg.type) {
     case MessageType.PREPARATION_DONE:
     case MessageType.HIGHLIGHT_ANSWER:
@@ -95,7 +97,7 @@ chrome.runtime.onMessage.addListener((msg, sender, callback) => {
       sendMessageToContent({
         type: MessageType.SCRAPE_CONTENT_TEXT
       });
-      
+
       break;
 
     case MessageType.PREPARE:
@@ -105,7 +107,7 @@ chrome.runtime.onMessage.addListener((msg, sender, callback) => {
       return getAnswerFromBackend(msg);
 
     default:
-      console.error('Did not recognize message type: ', msg);
+      console.error('background: did not recognize message type: ', msg);
       return true;
   }
 });

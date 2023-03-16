@@ -1,34 +1,24 @@
-// whatever you log here would be printed in the main tab window's console
 import './css/inject.css';
-import Mark from 'mark.js';
-import {
-  DATA_ATTR_ELEMENT_ID,
-  DATA_ATTR_SELECTED,
-  DATA_ATTR_SUCCESS,
-  CLASS_NAME_MARKED,
-  CLASS_NAME_MARKED_SCORE,
-  MIN_TOKENS
-} from './constants';
-import { Component, MessageType } from './message_types';
 
-import $ from 'jquery';
-import { v4 as uuidv4 } from 'uuid';
 import { convert } from 'html-to-text';
-import { TidyURL } from 'tidy-url';
+import Mark from 'mark.js';
 import { removeStopwords } from 'stopword';
+import { TidyURL } from 'tidy-url';
 
-// we'll remove tracking links from all URLs so that our LLM is not fed with junk
+import { MessageType } from './message_types';
+
+// this function removes all the tracking elements from the hyperlinks in the page
 const cleanseAllUrlsInPage = () => {
   const allAnchorTags = document.getElementsByTagName("a");
   for (var i = 0; i < allAnchorTags.length; i++) {
     const anchorTag = allAnchorTags[i]
-    const originalUrl = anchorTag.href 
+    const originalUrl = anchorTag.href
     anchorTag.href = TidyURL.clean(originalUrl).url
   }
 }
 
-// we'll remove stopwords from the text
-// TODO: we have disabled for now
+// this function removes all stopwords from the text
+// however this is very aggresive might break functionality in some cases
 const removeStopwordsInPageText = (fullText) => {
   const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
   return trimmedText
@@ -41,8 +31,7 @@ const scrapeContentAsPlainTextAndSendForPreparation = () => {
 
   const currentUrl = window.location.href;
   const options = {
-    wordwrap: 130,
-    // ...
+    wordwrap: 130
   };
 
   const dirtyHtml = document.documentElement.outerHTML;
@@ -57,99 +46,86 @@ const scrapeContentAsPlainTextAndSendForPreparation = () => {
   );
 }
 
+// this function removes the trailing slash (if present) in any hyperlink to ensure consistency
 function trimTrailingSlashInUrl(url) {
-  if(url.substr(-1) === '/') {
-      return url.substr(0, url.length - 1);
+  if (url.substr(-1) === '/') {
+    return url.substr(0, url.length - 1);
   }
   return url;
 }
 
+// this function removes all the highlights from the webpage
 const removeHighlightsOnPage = () => {
   const markInstance = new Mark(document.body);
   markInstance.unmark();
 }
 
-const handleSelection = (msg) => {
-  const element = document.getElementById(msg.elementId)
-  element.scrollIntoView({
+// this function jumps the current focus of the webpage to the highlight element
+const jumpToHighlight = (msg) => {
+  const elementToJumpTo = document.getElementById(msg.elementId)
+  elementToJumpTo.scrollIntoView({
     behavior: 'smooth',
     block: 'center',
     inline: 'center'
-});
+  });
 }
 
-// this function tries to highlight the answer on the DOM
+// this function highlights all the elements that contain the answers received
 const displayHighlightsOnPage = (msg) => {
-  // we'll first remove all the existing highlights on page
   removeHighlightsOnPage();
 
   const allAnswers = msg.answer.answers
   allAnswers.forEach((answer) => {
-    const stringToHighlight = answer["resp"]
-    console.log(stringToHighlight)
-    // if backend returns response code as `KZZ`, that means no response was found, so we skip
-    if ("KZZ" == stringToHighlight) {
+    const answersReceived = answer["resp"]
+    console.log(`content: answer to highlight - ${answersReceived}`)
+
+    // if answer is `KZZ` (pre-decided), that means no response was found, so we skip
+    if ("KZZ" == answersReceived) {
       return;
     }
 
-    // we'll have to look at the entire body to find out the highlights
+    // there could be multiple results, we split by comma
+    const textsToHighlight = answersReceived.split(',').map(c => c.trim());
+
+    // go through the entire document finding the highlight texts
     const markInstance = new Mark(document.body)
     const highlightingOptions = {
-      className: "highlighted",
-      element:  "span"
-    };
-
-    // there could be multiple results, we split by comma
-    const stringsToSearch = stringToHighlight.split(',').map(c => c.trim());
-
-    // apply the highlights
-    markInstance.mark(stringsToSearch, {
-      className: CLASS_NAME_MARKED,
+      className: "xcuzme-highlighted",
       acrossElements: true,
       separateWordSearch: false,
-      accuracy: "loose",
-      done: () => {
-        console.log("ok done")
-      }
-    });
+      accuracy: "loose"
+    };
 
-    // however sometimes answer can be in the hyperlinks, in that case we need to find the parent element
-    const cleansedUrlStrings = stringsToSearch.map(trimTrailingSlashInUrl)
+    // apply the highlights
+    markInstance.mark(textsToHighlight, highlightingOptions);
+
+    // however sometimes answer can be in the hyperlinks, in that case we find the parent element and highlight that
+    const cleansedPossiblyHyperlinks = textsToHighlight.map(trimTrailingSlashInUrl)
     const allHyperlinksInPage = document.querySelectorAll("a")
     allHyperlinksInPage.forEach(hyperlink => {
-      if (cleansedUrlStrings.includes(trimTrailingSlashInUrl(hyperlink.href))) {
-        markInstance.mark(hyperlink.textContent, {
-          className: CLASS_NAME_MARKED,
-          acrossElements: true,
-          separateWordSearch: false,
-          accuracy: "loose",
-          done: () => {
-            console.log("ok url highlighting done")
-          }
-        })
+      if (cleansedPossiblyHyperlinks.includes(trimTrailingSlashInUrl(hyperlink.href))) {
+        markInstance.mark(hyperlink.textContent, highlightingOptions)
       }
-
     })
 
-    // we send a search done message to popup so that the loading banner is stopped
     chrome.runtime.sendMessage(
       {
         type: MessageType.SEARCH_OPERATION_DONE,
       }
     );
 
+    console.log(`content: highlighting of ${textsToHighlight.length} answers successful`)
   });
 
+  // assign each of the highlighted elements a unique id and collect those ids
   const elementIdsOfHighlightedElements = []
-
   const highlightedResults = document.querySelectorAll("mark");
   highlightedResults.forEach((element, index) => {
-      // we assign each of these highlighted elements an id
-      element.id = Math.random().toString(36).slice(2, 7);
-      elementIdsOfHighlightedElements.push(element.id)
+    element.id = Math.random().toString(36).slice(2, 7);
+    elementIdsOfHighlightedElements.push(element.id)
   });
 
-  // aggregate all results and send to popup for iterability
+  // send the list of ids to popup for iterability
   chrome.runtime.sendMessage(
     {
       type: MessageType.MAKE_ANSWERS_ITERABLE,
@@ -162,9 +138,7 @@ const handleMsg = (msg, sender, callback) => {
   if (!msg) {
     return;
   }
-
-  console.log('recieved msg:', msg, 'from:', sender);
-
+  console.log('content: recieved msg:', msg, 'from:', sender);
   switch (msg.type) {
     case MessageType.PREPARE:
     case MessageType.PREPARATION_DONE:
@@ -182,14 +156,14 @@ const handleMsg = (msg, sender, callback) => {
       break;
 
     case MessageType.SELECT:
-      handleSelection(msg);
+      jumpToHighlight(msg);
       break;
     case MessageType.CLEAR:
       removeHighlightsOnPage();
       break;
 
     default:
-      console.error('Did not recognize message type:', msg);
+      console.error('content: did not recognize message type:', msg);
   }
 };
 

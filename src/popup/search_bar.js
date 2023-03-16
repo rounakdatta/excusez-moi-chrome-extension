@@ -1,53 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Box,
-  Button,
-  Container,
-  CircularProgress,
-  Divider,
-  IconButton,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  SvgIcon,
-  TextField
-} from '@material-ui/core';
-import EmailIcon from '@material-ui/icons/Email';
+import { CircularProgress, Grid, IconButton, TextField } from '@material-ui/core';
 import CloseIcon from '@material-ui/icons/Close';
-import KeyboardArrowUpIcon from '@material-ui/icons/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@material-ui/icons/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@material-ui/icons/KeyboardArrowUp';
 import SearchIcon from '@material-ui/icons/Search';
-
-import { Component, MessageType } from '../message_types';
-import { useTimeout } from './timeout';
+import React, { useEffect, useRef, useState } from 'react';
 import { hot } from 'react-hot-loader';
 
+import { MessageType } from '../message_types';
+
 const SearchBarState = {
-  MODEL_LOADING: 'MODEL_LOADING',
+  PREPARATION_ONGOING: 'PREPARATION_ONGOING',
   READY: 'READY',
   LOADING: 'LOADING',
   DONE: 'DONE'
 };
 
+// this function sends a message to the content script on the current tab
 const sendMessageToContent = (message) => {
-  console.log('send msg to content:', message);
+  console.log('popup: send msg to content:', message);
   chrome.tabs.query({ currentWindow: true, active: true }, (tabs) => {
     const activeTab = tabs[0];
     chrome.tabs.sendMessage(activeTab.id, message);
   });
 };
 
+// this function sends a message to the background script
 const sendMessageToBackground = (message) => {
-  console.log('send msg to background:', message);
+  console.log('popup: send msg to background:', message);
   chrome.runtime.sendMessage(message);
 };
 
 const registerListener = (setState, setAnswers, setErrors) => {
   chrome.runtime.onMessage.addListener((msg, sender, callback) => {
-    console.log('recieved msg:', msg, 'from:', sender);
+    console.log('popup: recieved msg:', msg, 'from:', sender);
     switch (msg.type) {
-      // Do nothing, these msgs are handled by the content script.
       case MessageType.HIGHLIGHT_ANSWER:
       case MessageType.PREPARE:
       case MessageType.ASK_QUESTION:
@@ -70,7 +56,7 @@ const registerListener = (setState, setAnswers, setErrors) => {
         break;
 
       default:
-        console.error('Did not recognize message type:', msg);
+        console.error('popup: did not recognize message type:', msg);
         break;
     }
   });
@@ -104,14 +90,14 @@ const SearchBarInput = (props) => {
 };
 
 const SearchBarControl = (props) => {
-  if (props.state === SearchBarState.MODEL_LOADING) {
+  if (props.state === SearchBarState.PREPARATION_ONGOING) {
     return (
       <Grid container spacing={2}>
         <Grid item>
           <CircularProgress size={22} />
         </Grid>
         <Grid item style={{ margin: 'auto auto' }}>
-          <span>Understanding...</span>
+          <span>Contextualizing webpage...</span>
         </Grid>
       </Grid>
     );
@@ -165,6 +151,7 @@ const SearchBarControl = (props) => {
 };
 
 const SearchIndicator = (props) => {
+  // if there are not answers found, then we go blank
   if (props.state === SearchBarState.DONE && props.answers.length === 0) {
     return <span style={{ textAlign: 'center' }}>No Results</span>;
   }
@@ -173,6 +160,7 @@ const SearchIndicator = (props) => {
     return null;
   }
 
+  // if there are answers, we display it properly
   return (
     <span>
       {props.selectionIdx + 1}/{props.answers.length}
@@ -183,7 +171,7 @@ const SearchIndicator = (props) => {
 const SearchBar = (props) => {
   var [answers, setAnswers] = useState([]);
   var [errors, setErrors] = useState([]);
-  var [state, setState] = useState(SearchBarState.MODEL_LOADING);
+  var [state, setState] = useState(SearchBarState.PREPARATION_ONGOING);
   var [selectionIdx, setSelectionIdx] = useState(0);
   var [input, setInput] = useState('');
 
@@ -202,7 +190,6 @@ const SearchBar = (props) => {
 
     sendMessageToContent({
       type: MessageType.SELECT,
-      // answer: answers[selectionIdx].answer,
       elementId: answers[selectionIdx]
     });
   }, [selectionIdx, answers]);
@@ -215,14 +202,12 @@ const SearchBar = (props) => {
 
   const search = () => {
 
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       const currentUrl = tabs[0].url;
-      console.log(tabs[0].url);
-    
       sendMessageToBackground({
         type: MessageType.ASK_QUESTION,
         query: input,
-        url: tabs[0].url
+        url: currentUrl
       });
     });
 
