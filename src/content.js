@@ -77,12 +77,11 @@ const displayHighlightsOnPage = (msg) => {
   const allAnswers = msg.answer.answers
   allAnswers.forEach((answer) => {
     const answersReceived = answer["resp"]
-    console.log(`content: answer to highlight - ${answersReceived}`)
-
     // if answer is `KZZ` (pre-decided), that means no response was found, so we skip
     if ("KZZ" == answersReceived) {
       return;
     }
+    console.log(`content: answer to highlight - ${answersReceived}`)
 
     // there could be multiple results, we split by comma
     const textsToHighlight = answersReceived.split(',').map(c => c.trim());
