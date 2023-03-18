@@ -1,4 +1,3 @@
-// whatever you log here will be written to the extension's console
 import '../public/icons/icon_128.png';
 import '../public/icons/icon_16.png';
 import '../public/icons/icon_48.png';

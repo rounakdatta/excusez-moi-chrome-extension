@@ -10,6 +10,8 @@ Often webpages are huge and Ctrl-F might not always be the Swiss Army knife for 
 
 Whenever you activate the extension (either by clicking on the icon / key shortcut), it first starts to understand  [^1] the article. Once ready, as you can write your query in the box and submit, it'll fetch the answers [^2] and highlight them on the webpage.
 
+In case you're wondering, yes there's a backend component to which this extension sends requests to. It does the OpenAI talking, some coordination and a bit of caching. Will open-source that in a bit.
+
 [^1]: The article's entire textual content is sent to OpenAI to generate embeddings out of it
 [^2]: The search query terms' embeddings are also generated and matched across the document's embeddings for relevant sections. OpenAI's chat completion is able to generate an answer out of the relevant sections.
 
