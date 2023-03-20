@@ -18,7 +18,7 @@ const cleanseAllUrlsInPage = () => {
 }
 
 // this function removes all stopwords from the text
-// however this is very aggresive might break functionality in some cases
+// however this is very aggresive and might break functionality in some cases
 const removeStopwordsInPageText = (fullText) => {
   const trimmedText = removeStopwords(fullText.split(" ")).join(" ")
   return trimmedText
@@ -83,8 +83,9 @@ const displayHighlightsOnPage = (msg) => {
     }
     console.log(`content: answer to highlight - ${answersReceived}`)
 
-    // there could be multiple results, we split by comma
-    const textsToHighlight = answersReceived.split(',').map(c => c.trim());
+    // there could be multiple results, we split by spaces
+    // sometimes response like `A, B and C` are returned, we must carefully handle the `and` here
+    const textsToHighlight = answersReceived.split(/,\s+|\s+and\s+/).map(c => c.trim().replace(/^and\s+/, ''));
 
     // go through the entire document finding the highlight texts
     const markInstance = new Mark(document.body)
@@ -92,7 +93,8 @@ const displayHighlightsOnPage = (msg) => {
       className: "xcuzme-highlighted",
       acrossElements: true,
       separateWordSearch: false,
-      accuracy: "loose"
+      accuracy: "partially",
+      ignoreJoiners: true
     };
 
     // apply the highlights

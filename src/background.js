@@ -25,7 +25,7 @@ const sendMessageToPopup = (message) => {
 
 // this function calls the backend with the preparation material expecting a 200 OK response
 const askBackendToPrepare = (msg) => {
-  fetch("http://localhost:8000/api/v1/prepare", {
+  fetch("https://xcuzme.taptappers.club/api/v1/prepare", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -52,7 +52,7 @@ const askBackendToPrepare = (msg) => {
 
 // this function calls the backend with the question expecting an apt answer
 const getAnswerFromBackend = (msg) => {
-  fetch("http://localhost:8000/api/v1/answer", {
+  fetch("https://xcuzme.taptappers.club/api/v1/answer", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
