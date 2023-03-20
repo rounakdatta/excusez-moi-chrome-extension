@@ -4,7 +4,9 @@ Semantic search on webpages by asking natural questions
 
 ## About
 
-Ctrl-F might not always be your Swiss Army knife for quickly finding information in huge webpages. This extension tries to fix that by allowing you to ask questions in natural language. It can also help you find URLs buried in hyperlinks.
+Ctrl+Shift+F is all you need!
+
+Ctrl+F might not always be your Swiss Army knife for quickly finding information in huge webpages. This extension tries to fix that by allowing you to ask questions in natural language. It can also help you find URLs buried in hyperlinks.
 
 ### How it works
 
@@ -22,7 +24,7 @@ In case you're wondering, yes there's a backend component ([source code](https:/
 ### Get going
 
 #### Chrome Web Store
-[![ChromeWebStore](https://i.imgur.com/Yns6w2k.png)]()
+*Chrome Web Store link would be available as soon as Google senpai approves it*
 
 #### Build from source
 - Download as ZIP
